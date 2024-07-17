@@ -7,6 +7,7 @@ from typing import Callable
 from typing import DefaultDict
 from typing import Dict
 from typing import List
+from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -43,6 +44,7 @@ class Authenticator(dns_common.DNSAuthenticator):
         self.r53 = boto3.client("route53")
         self._resource_records: DefaultDict[str, List[Dict[str, str]]] = \
             collections.defaultdict(list)
+        self.hosted_zone_id: Optional[str] = None
 
     def more_info(self) -> str:
         return "Solve a DNS01 challenge using AWS Route53"
@@ -51,6 +53,7 @@ class Authenticator(dns_common.DNSAuthenticator):
     def add_parser_arguments(cls, add: Callable[..., None],  # pylint: disable=arguments-differ
                              default_propagation_seconds: int = 10) -> None:
         add_deprecated_argument(add, 'propagation-seconds', 1)
+        add("hosted-zone-id", help="Optional Route53 hosted zone ID to use for validation")
 
     def auth_hint(self, failed_achalls: List[achallenges.AnnotatedChallenge]) -> str:
         return (
@@ -119,7 +122,7 @@ class Authenticator(dns_common.DNSAuthenticator):
         return zones[0][1]
 
     def _change_txt_record(self, action: str, validation_domain_name: str, validation: str) -> str:
-        zone_id = self._find_zone_id_for_domain(validation_domain_name)
+        zone_id = self.hosted_zone_id or self._find_zone_id_for_domain(validation_domain_name)
 
         rrecords = self._resource_records[validation_domain_name]
         challenge = {"Value": '"{0}"'.format(validation)}
